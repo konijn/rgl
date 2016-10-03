@@ -26,7 +26,12 @@ Every RGL program can have 2 sections:
     * Dungeons can have chests ('&') which can put data on the stack
     * Dungeons can have scrolls ('?') which can output data (dingle by default)
     * Dungeons can have chaos hounds ('Z') who change the dingle
-    * Dungeons can have major demons ('U') who can perform regular expressions on the dingle
+    * Dungeons can have Zoth Ommog('R') who can perform regular expressions on the dingle
+    * Dungeons can have zero portals ('0'), which will place the player back on the last 'V' or '>' or '1' thru '9'
+    * Dungeons can have down stairs ('>') which will place the player in the next dungeon
+    * Dungeons can have up stairs which will place the player in the previous dungeon, or ends the program
+    * Dungeons can have minor time vortexes ('v') which throw the player into the next cell n times
+    * Dungeons can have major time vortexes ('V') which are used in conjunction with zero portals for longer loops
     * Dungeons can have torches ('~') which set the mood lightning
 2. Config, optional
   * '~' Torches
