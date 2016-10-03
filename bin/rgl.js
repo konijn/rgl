@@ -1,22 +1,22 @@
 "use strict";
 
-//console.log(process);
-
 //Modules and globals
-var fs          = this.window?{}:require("fs"),
+//Todo make fs work in browser as well
+//Get browser arguments in preArgs and postArgs
+let fs          = this.window?{}:require("fs"),
     preArgs     = [],
     postArgs    = [],
     filename    = '',
     node        = this.window?navigator.appName:process.argv.shift(),
     interpreter = this.window?this:process.argv.shift(),
-    myProcess   = this.process?process:{ argv : [], exit: n=>console.log('Exit:'+n) };
+    myProcess   = this.window?{ argv : [], exit: n=>console.log('RGL loaded:'+n) }:process;
 
 //Start clean, if we can
 if( console.clear )
   console.clear();
 
 //Parsing parameters
-for( let argument of process.argv ){
+for( let argument of myProcess.argv ){
   if( argument.startsWith('-') ){
     if( filename ){
       postArgs.push( argument );
@@ -55,7 +55,7 @@ if ( filename ){
   });
 }else {
   console.error( 'No rgl script name was provided' );
-  process.exit(1);
+  myProcess.exit(1);
 }
 
 //***Layout***\\
@@ -85,21 +85,17 @@ Layout.prototype.walk = function walk( runtime ){
   var cell = runtime.cell,
       direction = runtime.direction,
       currentVortex = runtime.callStack.last();
-
   
   if( currentVortex && !currentVortex.cell.equals(cell) && currentVortex.type == 'v' ){
     //Minor time vortexes set you back, do not change direction
     //reduce time vortex counter
-    //console.log('v', currentVortex, cell  );
-    currentVortex.count--;
-    if(!currentVortex.count)
+    if(!--currentVortex.count)
       runtime.callStack.pop();
     else
       return true;
   }
 
-
-  //Can we still walk in our current direction;
+  //Can we still walk in our current direction?
   if( this.exists( cell.line + direction.line , cell.char + direction.char ) ){
     cell.line += direction.line;
     cell.char += direction.char;
@@ -182,7 +178,6 @@ Config.prototype.set = function configSet( type, script, index ){
 function Level( layout ){
   this.layout = layout;
 }
-
 
 //***lex***\\
 function lex( lines ){
@@ -280,21 +275,41 @@ function execute( runtime ){
   else if( type == 'R' ) zothOmmog( script, runtime );
 }
 
-function Container(o){
-  this.content = 0;
+function Yugg(script){
+  //console.log( 'Creating Yugg with ' + script );
+  this.script = script;
 }
 
 
+//Zoth Ommog, 'R', third son of Cthulu, caster of Regex, master of Yuggs
 function zothOmmog( script, runtime ){
 
   var context;
+  console.log( script );
+  console.log( script.shift() );
   if( script.startsWith('&') ){
-    var operation = script.shift().first();
-    runtime.stack.push( new Container([operation].concat( script.shift(2).split( runtime.mods.separatorRegex ) ) ) );
+    runtime.stack.push( new Yugg( script.shift() ) );
   }else{
-    chaos( script.shift(), runtime );
+    chaos( script, runtime );
   }
 }
+
+//Retrieve the Yuggs from the stack, apply them to the runtime
+function summonZothOmmog( runtime ){
+
+  while( runtime.stack.length ){
+    var o = runtime.stack.pop();
+    if( o instanceof Yugg ){
+      runtime.mods.regexOut.push( o );
+      console.log( o );
+    } else {
+      runtime.stack.push( o )
+      return;
+    }
+  }
+}
+
+
 
 function timeN( script, runtime, char ){
 
@@ -345,8 +360,8 @@ function modify( x , script , runtime ){
     }
     if( xScript.startsWith('T') ){
       parts = xScript.shift().split( runtime.mods.separatorRegex );
-      x = ( x + '' ).replace( parts[0], parts[1] );
-      xscript = '';
+      x = ( x + '' ).replace( new RegExp( parts[0] ), parts[1] );
+      xScript = '';
     }    
     if( xScript.startsWith('-') || xScript.startsWith('+') || xScript.startsWith('/') ){
       parts = xScript.split( runtime.mods.separator );
@@ -365,7 +380,7 @@ function chaos( script, runtime ){
   var stack = runtime.stack,
       data = stack.slice(-1)[0];
 
-  if( data.length ){
+  if( data.length && typeof data != 'string' ){
     for( var i = 0 ; i < data.length ; i++ ){
       data[i] = modify( data[i], script, runtime );
     }
@@ -388,7 +403,8 @@ function light( script, runtime ){
       if( char == 'n' ) mods.separatorOut = '\n'; //n =? newlines after scrolls
       if( char == 'S' ) context = 'mods.separatorOut';
       if( char == 's' ) context = 'mods.separator';
-      if( char == 'R' ) context = 'mods.separatorRegex';
+      if( char == 'r' ) context = 'mods.separatorRegex';
+      if( char == 'R' ) summonZothOmmog( runtime );
     }else{
       //Todo, allow separator to come from the stack
       if( context == 'mods.separatorOut' ) mods.separatorOut = char;
@@ -419,6 +435,39 @@ function chest( script, runtime ){
 
 }
 
+function replaceYouMaybe( match, symbol, value ){
+  return match.startsWith('\\') ? symbol : 
+         match.length ==2 ? match.slice(0,1).concat( value )
+                          : value;
+}
+
+
+
+function write( s , runtime ){
+
+ s = s.toString().replace( /\\n/g , runtime.mods.eol );
+ let dingle = runtime.stack.last();
+ //Replace @ with the dingle, but leave \@ alone
+ s = s.replace( /^@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ) });
+ s = s.replace( /.@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ) });
+
+
+ if( runtime.mods.regexOut.length ){
+
+   runtime.stack.push( s );
+   for( let regex of runtime.mods.regexOut ){
+     chaos( regex.script, runtime );
+   }
+   s = runtime.stack.pop();
+ }
+
+
+ myProcess.stdout.write( s );
+
+}
+
+
+
 function scroll( script, runtime ){
 
   var stack = runtime.stack,
@@ -426,18 +475,18 @@ function scroll( script, runtime ){
 
   //Without script we just dump what is on the stack
   if( !script ){
-    process.stdout.write( stack.last(runtime).toString().replace(/\\n/g,'\r\n') );
+    write( stack.last(runtime), runtime );
   //Otherwise we check and deal with a string constant
   }else if( script.startsWith("'") ){
-    process.stdout.write( script.slice(1).replace(/\\n/g,'\n') );    
+    write( script.slice(1), runtime );    
   //Finally, there might be some transformation we might have to apply first
   }else{
     chaos( script, runtime );
-    process.stdout.write( stack.last(runtime).toString().replace(/\\n/g,'\r\n') );
+    write( stack.last(runtime), runtime );
   }
 
   //if(!mods.concat)
-  process.stdout.write( runtime.mods.separatorOut );
+  write( runtime.mods.separatorOut, runtime );
 
 }
 
@@ -468,7 +517,7 @@ Cell.prototype.equals = function cellEquals(cell){
 }
 
 
-function Runtime( stack ){
+function Runtime( stack, eol ){
 
   this.stack = stack,
   this.callStack = [],
@@ -479,7 +528,9 @@ function Runtime( stack ){
     radixOut : 10,
     separatorOut : '\n',
     separator : ';',
-    separatorRegex: '`'
+    separatorRegex: '`',
+    regexOut: [],
+    eol: eol
   }
 }
 
@@ -496,7 +547,7 @@ function run( fileContent ){
       lines = fileContent.split( eol ),
       levels = parse( lex( lines ) );
 
-  runLevel( levels, 0, new Runtime( postArgs ) ); 
+  runLevel( levels, 0, new Runtime( postArgs, eol ) ); 
 }
 
 
@@ -519,7 +570,7 @@ function upgradeNode(){
   }
 
   String.prototype.shift = function stringShift(n){
-    return this.slice(0,n||1);  
+    return this.slice(n||1);  
   }
 
 }
