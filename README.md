@@ -1,8 +1,14 @@
 # Roguelike Golf Language
 
 Conceived on September 17, 2016. 
-Inspired by https://esolangs.org/wiki/List_of_ideas#Game and 
-http://codegolf.stackexchange.com/
+Inspired by 
+* https://esolangs.org/wiki/List_of_ideas#Game
+* http://codegolf.stackexchange.com/
+* http://angband.oook.cz/stuff/manual.txt
+
+"Vocabulary"
+
+* The item on top of the stack, (last added item), is henceforth called the **Dingle**, I am open to counter suggestions
 
 "Syntax"
 
@@ -18,11 +24,26 @@ Every RGL program can have 2 sections:
     * Dungeons can have lice ('l') who can act on lists
     * Dungeons can have ancient dragons ('D') who will destroy data
     * Dungeons can have chests ('&') which can put data on the stack
-    * Dungeons can have scrolls ('?') which can output data
-    * Dungeons can have chaos hounds ('Z') who can act on each individual item in a list on a stack
-    * Dungeons can have major demons ('U') who can perform regular expressions
-
+    * Dungeons can have scrolls ('?') which can output data (dingle by default)
+    * Dungeons can have chaos hounds ('Z') who change the dingle
+    * Dungeons can have major demons ('U') who can perform regular expressions on the dingle
+    * Dungeons can have torches ('~') which set the mood lightning
 2. Config, optional
+  * '~' Torches
+    * `k` -> Keep values on stack after most operations (impacts scrolls and time vortexes)
+    * 'l' -> Loose values on stack after most operations (impacts scrolls and time vortexes) *Default*
+    * 'c' -> Concatenate all scroll outputs
+    * 'n' -> Separate scroll outputs with newlines *Default*
+    * 'R' -> Read all Yuggs (Regular Expressions) from the top of the stack and apply them on scroll outputs
+    * Set a context
+      * 's' -> The next character will determine the internal list separator (impacts split/join)
+      * 'S' -> The next character will determine the separator between scroll outputs (@ will use the top stack as separator)
+      * 'r' -> The next character will determine the separator between regex operation parameters
+  * '&' Chests
+    * Starting with ' -> take the rest of the line and put on stack as string 
+    * Starting with a char from [1-9] -> take the rest of the line and put on stack as number
+    * **TODO** Starting with 'r' -> Find `..` in the remainder of the string and try to build a range (could be numberic or character) 
+    
 
 
 
