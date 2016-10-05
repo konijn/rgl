@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>RGL Runner</title>
+  <style>
+    textarea { font-family: monospace; display:block }
+    button { background-color:lightgrey }
+  </style>
+  <script src="bin/rgl.js"></script>
+</head>
+<body>
+<h2>RGL: Roguelike Golf Language</h2>
+Code:<br>
+<textarea cols="120" rows="20" id="code">?
+?'Hello World</textarea>
+Parameters:<br>
+<textarea cols="120" rows="1" id="params"></textarea>  
+Execute:<br>
+<button id="go">Go!</button><br>
+Output:
+<div id="output"></div>
+ 
+  
+<script>
+  
+  //One day this might become a library in a separate js
+  //But today, is not that day
+  
+  function $(id){
+    return document.getElementById(id);
+  }
+  
+  function go(){
+  
+    const code = $('code').value,
+	      params = $('params').value,
+          lines = code.split('\n'),
+          out = $('output');
+    
+    for(line of lines){
+      console.log(line);
+    }
+	//Send a nice list of trimmed, non space parameters
+	myProcess.argv = params.split(/\W/).filter(s=>s).map(s=>s.trim());
+	//Run that thing
+    runFile( code );
+  
+  }
+  
+  const button = $('go');
+  $('go').style.width = $('code').offsetWidth + 'px'  
+  $('go').addEventListener('click', go);
+  
+</script>
+  
+</body>
+</html>
