@@ -1,0 +1,6 @@
+?+??+?
+?'Enter a value
+ ?'Enter another value
+@This will ask for a value, store it on the stack, and echo the stack value, twice
+@Its a good test case for feeding a file to stdin with <
+@and for testing the ' ?' (preceding space) which means that the there is no script for question mark 2
