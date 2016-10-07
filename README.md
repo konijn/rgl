@@ -10,6 +10,10 @@ Inspired by
 
 * The item on top of the stack, (last added item), is henceforth called the **Dingle**, I am open to counter suggestions
 
+"IDE"
+
+https://konijn.github.io/rgl/
+
 "Syntax"
 
 Every RGL program can have 2 sections:
