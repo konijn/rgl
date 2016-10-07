@@ -480,13 +480,17 @@ function modify( x , script , runtime ){
   let xScript = script, parts;
   while(xScript.length){
     //Lets check for some operators
-    if( xScript.startsWith('U') ){
+    if( xScript.startsWith('r') ){
+      x = Math.round(x);
+      xScript = xScript.slice(1);     
+    }
+    else if( xScript.startsWith('U') ){
       x = x.toString().toUpperCase();
-      xscript = xscript.slice(1);
+      xScript = xscript.slice(1);
     }
     else if( xScript.startsWith('l') ){
       x = x.toString().toLowerCase();
-      xscript = xscript.slice(1);
+      xScript = xscript.slice(1);
     }
     else if( xScript.startsWith('T') ){
       parts = xScript.shift().split( runtime.mods.separatorRegex );
@@ -629,15 +633,19 @@ function scroll( script, runtime ){
       mods = runtime.mods;
 
   //Without script we just dump what is on the stack
+  //Keep the value on stack based on runtime.keep via last()
   if( !script ){
     write( stack.last(runtime), runtime );
-  //Otherwise we check and deal with a string constant
+  //Otherwise we check and deal with a string constant, keep stack intact
   }else if( script.startsWith("'") ){
     write( script.slice(1), runtime );    
   //Finally, there might be some transformation we might have to apply first
   }else{
+    runtime.stack.push( runtime.stack.last() );
     chaos( script, runtime );
-    write( stack.last(runtime), runtime );
+    write( stack.pop(), runtime );
+    if( !runtime.mods.keep ) 
+      stack.pop();
   }
 
   //if(!mods.concat)
