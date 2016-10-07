@@ -189,7 +189,6 @@ Layout.prototype.walk = function walk( runtime ){
 }
 
 
-
 //***Config***\\
 function Config( line ){
   this.lines = [line];
@@ -474,6 +473,8 @@ function jump( script, runtime ){
   }
 }
 
+
+
 function modify( x , script , runtime ){
 
   let xScript = script, parts;
@@ -492,9 +493,16 @@ function modify( x , script , runtime ){
       x = ( x + '' ).replace( new RegExp( parts[0] ), parts[1] );
       xScript = '';
     }    
-    else if( xScript.startsWith('-') || xScript.startsWith('+') || xScript.startsWith('/') ){
+    else if( xScript.startsWithIn(['-','+','/','*','%']) ){
+      x = x * 1;
       parts = xScript.split( runtime.mods.separator );
-      x = eval( 'x' + parts.shift() );
+      x = eval( 'x' + templateString( parts.shift(), runtime ) );
+      xScript = parts.join( runtime.mods.separator );
+    } 
+    else if( xScript.startsWithIn(['^']) ){
+      x = x * 1;
+      parts = xScript.split( runtime.mods.separator );
+      x = eval( 'Math.pow( x , ' + templateString( parts.shift().shift(), runtime ) + ')' );
       xScript = parts.join( runtime.mods.separator );
     } else {
       console.log( 'Modify operation not recognized, treating the rest as a string!');
@@ -535,6 +543,7 @@ function light( script, runtime ){
       if( char == 'c' ) mods.separatorOut = '';   //c => concat output (no newlines after scrolls)
       if( char == 'n' ) mods.separatorOut = '\n'; //n => newlines after scrolls
       if( char == 'F' ) mods.fileMode = true;     //F => do not split stdin up into newline separated chunks
+      if( char == 't' ) mods.printMode = 'string';//t => print strings, do not try to eval with stack
       if( char == 'S' ) context = 'mods.separatorOut';
       if( char == 's' ) context = 'mods.separator';
       if( char == 'r' ) context = 'mods.separatorRegex';
@@ -747,6 +756,15 @@ function upgradeNode(){
 
   String.prototype.shift = function stringShift(n){
     return this.slice(n||1);  
+  }
+
+  String.prototype.startsWithIn = function stringStartsWithIn( list ){
+    for( let i = 0 ; i < list.length ; i++ ){
+      if(this.startsWith(list[i])){
+        return true;
+      }
+    }
+    return false;
   }
 
 }
