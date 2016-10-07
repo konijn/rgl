@@ -3,17 +3,14 @@
 //Modules and globals
 //Todo make fs work in browser as well
 //Get browser arguments in preArgs and postArgs
-let fs          = this.window?{}:require("fs"),
+let isNode = !this.window,
+    fs          = isNode?require("fs"):{},
     preArgs     = [],
     postArgs    = [],
     filename    = '',
-    node        = this.window?navigator.appName:process.argv.shift(),
-    interpreter = this.window?this:process.argv.shift(),
-    myProcess   = this.window?{ argv : [], exit: n=>console.log('RGL loaded:'+n) }:process;
-
-//Start clean, if we can
-if( console.clear )
-  console.clear();
+    app         = isNode?process.argv.shift():navigator.appName,
+    interpreter = isNode?process.argv.shift():'Running in browser',
+    myProcess   = isNode?process:{ argv : [], exit: n=>console.log('RGL loaded:'+n) , stdout : { write : s=>$('output').innerHTML +=s } };
 
 //Parsing parameters
 for( let argument of myProcess.argv ){
@@ -37,7 +34,7 @@ for( let argument of myProcess.argv ){
 
 //Be verbose if requested
 if( ~preArgs.indexOf('-verbose') ){
-  console.info( 'Node              : ' + node );
+  console.info( 'App               : ' + app );
   console.info( 'RGL Interpreter   : ' + interpreter );
   console.info( 'RGL Script        : ' + filename );
   console.info( 'RGL Arguments     : ' + preArgs ); 
@@ -48,14 +45,17 @@ if( ~preArgs.indexOf('-verbose') ){
 upgradeNode();
 
 //Run the script if provided
-if ( filename ){
-  fs.readFile(filename ,(err, data) => {
-    if (err) throw err;
-    runFile( data );
-  });
-}else {
-  console.error( 'No rgl script name was provided' );
-  myProcess.exit(1);
+if( isNode ){
+  if ( filename ){
+    //'binary' is required to parse ANSI files correctly!
+    fs.readFile(filename , 'binary', (err, data) => {
+      if (err) throw err;
+      runFile( data );
+    });
+  }else {
+    console.error( 'No rgl script name was provided' );
+    myProcess.exit(1);
+  }
 }
 
 //***Layout***\\
@@ -81,14 +81,55 @@ Layout.prototype.exists = function exists( line, char ){
   return this.lines[line] && this.lines[line][char] !== undefined;
 }
 
+Layout.prototype.findNextPortal = function jumpNextPortal( runtime ){
+  var cell = runtime.cell,
+      line = cell.line,
+      char = cell.char,
+      type = this.lines[line][char],
+      possibleLocation = this.lines[line].indexOf( type, char+1 );
+  //Strategy 1, did we find something on the same line
+  if( possibleLocation != -1 ){
+    runtime.cell.char = possibleLocation;
+  }else{
+    //Strategy 2, do we find something on deeper lines?
+    for( line = cell.line + 1 ; line < this.lines.length; line++ ){
+      possibleLocation = this.lines[line].indexOf( type );
+      if( possibleLocation != -1 ){
+        runtime.cell.char = possibleLocation;
+        runtime.cell.line = line;
+        return;
+      }
+    }
+    //Strategy 3, do we find something on earlier lines? 
+    for( line = 0 ; line < cell.line; line++ ){
+      possibleLocation = this.lines[line].indexOf( type );
+      if( possibleLocation != -1 ){
+        runtime.cell.char = possibleLocation;
+        runtime.cell.line = line;
+        return;
+      }
+    }
+    //Strategy 4, do we find something on earlier lines?
+    possibleLocation = this.lines[cell.line].indexOf( type );
+    if( possibleLocation != -1 && possibleLocation != char ){
+      runtime.cell.char = possibleLocation;
+      return;
+    }
+    //Strategy 5, blame the 'developer'
+    console.log('No matching portal found :/');
+  }
+}
+
 Layout.prototype.walk = function walk( runtime ){
   var cell = runtime.cell,
       direction = runtime.direction,
-      currentVortex = runtime.callStack.last();
+      lastCall = runtime.callStack.last(),
+      currentVortex = lastCall instanceof TimeVortex?lastCall:undefined;
 
   if( !cell ){
     runtime.cell = runtime.level.layout.getEntry();
-    runtime.direction = { line : 0 , char : 1 };
+    //A bit of a hack, we need .clone() and I dont want to copy paste
+    runtime.direction = new Cell( 0, 1 );
     return true;
   }
   
@@ -287,11 +328,36 @@ function execute( runtime ){
   else if( type == '0' ) jump( script, runtime );
   else if( type == 'R' ) zothOmmog( script, runtime );
   else if( type == '+' ) door( script, runtime );
+  else if( type == '<' ) goUpstairs( script, runtime );
+  else if( type.match(/\d/) ) portal( script, runtime, type );
+  else console.log( type + ' not recognized, infinite loop!');
 
   if( !runtime.async )
-    run( runtime );
-    
+    run( runtime ); 
 }
+
+
+function portal( script, runtime, type ){
+
+  script = script || 'true';
+  let statement = templateString( script, runtime );
+  let value = eval(statement);
+  if(value){
+    runtime.level.layout.findNextPortal( runtime );
+  }
+}
+
+function goUpstairs( script, runtime ){
+
+  if( runtime.levelStack.length == 1 ){
+    //We have left the dungeon
+    runtime.done = true;
+  }else{
+    //We are about to experience more pain
+  }
+
+}
+
 
 function Yugg(script){
   //console.log( 'Creating Yugg with ' + script );
@@ -333,38 +399,47 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 */
-function door( script, runtime ){
 
-  var input;
-
-  runtime.async = true;
-  process.stdin.resume();
-  process.stdin.on('data', function (raw) {
-    process.stdin.pause();
-    //console.log('received data:', input = raw.toString(), raw );
-    input = raw.toString().trimRight();
-    if( !runtime.fileMode ){
-      let lines = input.split( runtime.mods.eol );
-      if( lines.length > 1 ){
-        input = lines.shift();
-        process.stdin.push( lines.join( runtime.mods.eol ) );
-      }
-    }
+function storeInput( input, script, runtime ){
     if(!script){
       runtime.stack.push( input )
     }else if( script == 'a' || script == 'Ò' ){
       runtime.registers[0] = input;
     }else if( script == 'b' || script == 'Ó' ){
-      runtime.registers[0] = input;
+      runtime.registers[1] = input;
     }else if( script == 'c' || script == 'Ô' ){
-      runtime.registers[0] = input;
+      runtime.registers[2] = input;
     }else if( script == 'd' || script == 'Õ' ){
-      runtime.registers[0] = input;
+      runtime.registers[3] = input;
     }else if( script == 'e' || script == 'Ö' ){
-      runtime.registers[0] = input;
+      runtime.registers[4] = input;
     }
-    run( runtime );
-  });
+}
+
+function door( script, runtime ){
+
+  var input;
+
+  if( isNode ){
+    runtime.async = true;
+    process.stdin.resume();
+    process.stdin.once('data', function (raw) {
+      process.stdin.pause();
+      //console.log('received data:', input = raw.toString(), raw );
+      input = raw.toString().trimRight();
+      if( !runtime.fileMode ){
+        let lines = input.split( runtime.mods.eol );
+        if( lines.length > 1 ){
+          input = lines.shift();
+          process.stdin.push( lines.join( runtime.mods.eol ) );
+        }
+      }
+      storeInput(input, script, runtime)
+      run( runtime );
+    });
+  } else {
+    storeInput( prompt(), script, runtime );
+  }
 }
 
 function timeVortex( script, runtime, char ){
@@ -408,19 +483,23 @@ function modify( x , script , runtime ){
       x = x.toString().toUpperCase();
       xscript = xscript.slice(1);
     }
-    if( xScript.startsWith('l') ){
+    else if( xScript.startsWith('l') ){
       x = x.toString().toLowerCase();
       xscript = xscript.slice(1);
     }
-    if( xScript.startsWith('T') ){
+    else if( xScript.startsWith('T') ){
       parts = xScript.shift().split( runtime.mods.separatorRegex );
       x = ( x + '' ).replace( new RegExp( parts[0] ), parts[1] );
       xScript = '';
     }    
-    if( xScript.startsWith('-') || xScript.startsWith('+') || xScript.startsWith('/') ){
+    else if( xScript.startsWith('-') || xScript.startsWith('+') || xScript.startsWith('/') ){
       parts = xScript.split( runtime.mods.separator );
       x = eval( 'x' + parts.shift() );
       xScript = parts.join( runtime.mods.separator );
+    } else {
+      console.log( 'Modify operation not recognized, treating the rest as a string!');
+      x = xScript;
+      xScript = ''
     }
   }
   return x;
@@ -470,6 +549,7 @@ function light( script, runtime ){
   }
 }
 
+
 function chest( script, runtime ){
 
   var stack = runtime.stack,
@@ -491,6 +571,7 @@ function chest( script, runtime ){
 }
 
 function replaceYouMaybe( match, symbol, value ){
+  //console.log('replaceYouMaybe', match, symbol, value);
   return match.startsWith('\\') ? symbol : 
          match.length ==2 ? match.slice(0,1).concat( value )
                           : value;
@@ -499,8 +580,13 @@ function replaceYouMaybe( match, symbol, value ){
 function templateString( s  , runtime ){
   //Replace @ with the dingle, but leave \@ alone
   let dingle = runtime.stack.last();
-  s = s.replace( /^@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ) });
+  s = s.replace( /^@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ) }); 
   s = s.replace( /.@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ) });
+
+  //console.log( 'Run time register: ' , runtime.registers , runtime.registers[0] );
+
+  s = s.replace( /^Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ) });
+  s = s.replace( /.Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ) });
   return s;
 }
 
@@ -519,8 +605,12 @@ function write( s , runtime ){
    s = runtime.stack.pop();
  }
 
+ if(!isNode){
+   s = s.replace(/(?:\r\n|\r|\n)/g, '<br>');
+ }
 
- myProcess.stdout.write( s );
+  myProcess.stdout.write( s );
+ 
 
 }
 
@@ -585,6 +675,11 @@ function TimeVortex( type, cell, count ){
   this.count = count;
 }
 
+function LevelEntry( cell, direction ){
+  this.cell = cell?cell.clone():undefined;
+  this.direction =  direction?direction.clone():undefined;
+}
+
 //This is the entry point, the calls go
 //runFile -> runLevel -> run <-> execute
 //execute will will call back run for synchronous operations
@@ -592,6 +687,13 @@ function TimeVortex( type, cell, count ){
 //run might of course call runLevel, TODO: level stack
 function runFile( fileContent ){
   debugger;
+
+  //Start clean, if we can
+  if( console.clear )
+    console.clear();
+  if( !isNode )
+    $('output').innerHTML = '';
+
   var fileContent = fileContent.toString(),
       eol = ~fileContent.indexOf('\r\n') ? '\r\n' : '\n',
       lines = fileContent.split( eol ),
@@ -601,6 +703,12 @@ function runFile( fileContent ){
 }
 
 function runLevel( levelIndex, runtime ){
+  //Make sure there is a level stack
+  runtime.levelStack = runtime.levelStack || [];
+  //Set the level stack
+  runtime.levelStack.push(levelIndex);
+  //Set the call stack (to know how far to rewind when we come back)
+  runtime.callStack.push( new LevelEntry( runtime.cell, runtime.direction ) );
   //Set the level
   runtime.level = runtime.levels[levelIndex];
   //Where are we??
@@ -613,7 +721,7 @@ function runLevel( levelIndex, runtime ){
 
 function run( runtime ){
   //walk & execute or exit
-  if( runtime.level.layout.walk( runtime ) ){
+  if( !runtime.done && runtime.level.layout.walk( runtime ) ){
     execute( runtime );
   }
 }
