@@ -328,6 +328,8 @@ function execute( runtime ){
   else if( type == 'R' ) zothOmmog( script, runtime );
   else if( type == '+' ) door( script, runtime );
   else if( type == '<' ) goUpstairs( script, runtime );
+  else if( type == '(' ) wield( script, runtime);
+  else if( type == ')' ) unwield( script, runtime);
   else if( type.match(/\d/) ) portal( script, runtime, type );
   else console.log( type + ' not recognized, infinite loop!');
 
@@ -335,6 +337,59 @@ function execute( runtime ){
     run( runtime ); 
 }
 
+//Wielding does not consume, not sure if this makes sense though
+function wield( script, runtime ){
+  if(!script){
+    runtime.registers[0] = runtime.stack.last();
+    return;
+  }
+  let target = script.first();
+  if( target == 'a' || target == 'Ò' )
+    target = 0; //Though, that is retarded..
+  else if( target == 'b' || target == 'Ó' )
+    target = 1; //Though, that is retarded..
+  else if( target == 'c' || target == 'Ô' )
+    target = 2; //Though, that is retarded..
+  else if( target == 'd' || target == 'Õ' )
+    target = 3; //Though, that is retarded..
+  else if( target == 'e' || target == 'Ö' )
+    target = 4; //Though, that is retarded..
+  else {
+    target = 0;
+    script = 'a' + script;
+  }
+  runtime.stack.doubleDingle();
+  if(script.length!=1){
+    chaos( script.shift(), runtime );
+  }
+  runtime.registers[target] = runtime.stack.last(false); //False -> dontkeep
+}
+
+function unwield( script, runtime ){
+  if(!script){
+    runtime.stack.push( runtime.registers[0] );
+    return;
+  }
+  let source = script.first();
+  if( source == 'a' || source == 'Ò' )
+    source = 0; //Though, that is retarded..
+  else if( source == 'b' || source == 'Ó' )
+    source = 1; //Though, that is retarded..
+  else if( source == 'c' || source == 'Ô' )
+    source = 2; //Though, that is retarded..
+  else if( source == 'd' || source == 'Õ' )
+    source = 3; //Though, that is retarded..
+  else if( source == 'e' || source == 'Ö' )
+    source = 4; //Though, that is retarded..
+  else {
+    source = 0;
+    script = 'a' + script;
+  }
+  runtime.stack.push( runtime.registers[source] );
+  if(script.length!=1){
+    chaos( script.shift(), runtime );
+  }
+}
 
 function portal( script, runtime, type ){
 
@@ -486,11 +541,11 @@ function modify( x , script , runtime ){
     }
     else if( xScript.startsWith('U') ){
       x = x.toString().toUpperCase();
-      xScript = xscript.slice(1);
+      xScript = xScript.slice(1);
     }
     else if( xScript.startsWith('l') ){
       x = x.toString().toLowerCase();
-      xScript = xscript.slice(1);
+      xScript = xScript.slice(1);
     }
     else if( xScript.startsWith('T') ){
       parts = xScript.shift().split( runtime.mods.separatorRegex );
@@ -498,16 +553,33 @@ function modify( x , script , runtime ){
       xScript = '';
     }    
     else if( xScript.startsWithIn(['-','+','/','*','%']) ){
-      x = x * 1;
-      parts = xScript.split( runtime.mods.separator );
-      x = eval( 'x' + templateString( parts.shift(), runtime ) );
-      xScript = parts.join( runtime.mods.separator );
+      if(isNaN(x * 1)){
+        if( xScript.startsWith('+') ){
+          parts = xScript.split( runtime.mods.separator );
+          x  = x + templateString( parts.shift().shift(), runtime );
+          xScript = parts.join( runtime.mods.separator );
+        }          
+        if( xScript.startsWith('*') ){
+          parts = xScript.split( runtime.mods.separator );
+          x  = x.repeat( templateString( parts.shift().shift(), runtime ) );
+          xScript = parts.join( runtime.mods.separator );
+        }          
+      }else{
+        x = x * 1;
+        parts = xScript.split( runtime.mods.separator );
+        x = eval( 'x' + templateString( parts.shift(), runtime ) );
+        xScript = parts.join( runtime.mods.separator );
+      }
     } 
     else if( xScript.startsWithIn(['^']) ){
-      x = x * 1;
-      parts = xScript.split( runtime.mods.separator );
-      x = eval( 'Math.pow( x , ' + templateString( parts.shift().shift(), runtime ) + ')' );
-      xScript = parts.join( runtime.mods.separator );
+      if(isNaN(x * 1)){
+        //Who knows right ;)
+      }else{
+        x = x * 1;
+        parts = xScript.split( runtime.mods.separator );
+        x = eval( 'Math.pow( x , ' + templateString( parts.shift().shift(), runtime ) + ')' );
+        xScript = parts.join( runtime.mods.separator );
+      }
     } else {
       console.log( 'Modify operation not recognized, treating the rest as a string!');
       x = xScript;
@@ -552,6 +624,7 @@ function light( script, runtime ){
       if( char == 's' ) context = 'mods.separator';
       if( char == 'r' ) context = 'mods.separatorRegex';
       if( char == 'R' ) applyYuggs( runtime );
+      if( char == ' ' ) process.stdout.write("\u001b[2J\u001b[0;0H");
     }else{
       //Todo, allow separator to come from the stack
       if( context == 'mods.separatorOut' ) mods.separatorOut = char;
@@ -756,6 +829,10 @@ function upgradeNode(){
       return runtimeOrKeep.mods.keep ? value : this.pop();
     console.warn( 'Array.last() called not using undefined/boolean/Runtime: ' + JSON.stringify( Object.getPrototypeOf( runtimeOrKeep ) ) );
     return value;
+  }
+
+  Array.prototype.doubleDingle = function arrayDoubleDingle(){
+    this.push( this.last() );
   }
 
   String.prototype.first = function stringFirst(){
