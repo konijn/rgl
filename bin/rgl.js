@@ -329,19 +329,38 @@ function execute( runtime ){
   else if( type == '+' ) door( script, runtime );
   else if( type == '<' ) goUpstairs( script, runtime );
   else if( type == '(' ) wield( script, runtime);
+  else if( type == '[' ) heavyWield( script, runtime);
   else if( type == ')' ) unwield( script, runtime);
   else if( type == 'l' ) lice( script, runtime );
   else if( type.match(/\d/) ) portal( script, runtime, type );
   else console.log( type + ' not recognized, infinite loop!');
 
-  if( !runtime.async )
-    run( runtime ); 
+  //run( runtime ); 
+  if( !runtime.async ){
+    setTimeout( () => run(runtime) , 0);
+  }
+}
+
+function heavyWield(script, runtime){
+  let oldKeepValue = runtime.mods.keep;
+  runtime.mods.keep = true;
+  wield( script, runtime );
+  runtime.mods.keep = oldKeepValue;
 }
 
 //Wielding does not consume, not sure if this makes sense though
 function wield( script, runtime ){
   if(!script){
     runtime.registers[0] = runtime.stack.last();
+    return;
+  }
+  //Multi move from stack to registers
+  if(script.startsWith('*')){
+    let moveCount = Math.min( runtime.stack.length, runtime.mods.maxRegisters ),
+        registerIndex = 0;
+    while(moveCount--){
+      wield( String.fromCharCode(97+registerIndex++) + script.shift() , runtime );
+    }
     return;
   }
   let target = script.first();
@@ -359,11 +378,13 @@ function wield( script, runtime ){
     target = 0;
     script = 'a' + script;
   }
-  runtime.stack.doubleDingle();
+  //Make sure that if we keep the value that 
+  if(runtime.mods.keep)
+    runtime.stack.doubleDingle();
   if(script.length!=1){
     chaos( script.shift(), runtime );
   }
-  runtime.registers[target] = runtime.stack.last(false); //False -> dontkeep
+  runtime.registers[target] = runtime.stack.last(false); //Keep = false
 }
 
 function unwield( script, runtime ){
@@ -499,18 +520,28 @@ function door( script, runtime ){
 
 function timeVortex( script, runtime, char ){
 
-  var count, originalCount;
+  var count, originalCount = runtime.stack.last(), fromStack = true;
 
   if(!script){
     count = runtime.stack.last(runtime)*1;
-  }else if( isNaN( script.charAt(0)  ) ){
-    originalCount = runtime.stack.last();
+  }else if( script.startsWithIn(['Ò','Ó','Ô','Õ','Ö'])){
+    originalCount = script.charCodeAt(0) - 210;
+    script = script.shift();
+    fromStack = false;
+  }else if( script.startsWithIn(['a','b','c','d','e'])){
+    originalCount = script.charCodeAt(0) - 97;
+    script = script.shift();
+    fromStack = false;
+  }else if( !isNaN( script.charAt(0)  ) ){
+    count = script*1;
+  }
+
+  if(!count){
+    runtime.stack.push( originalCount );
     chaos( script, runtime );
     count = runtime.stack.pop();
-    if( runtime.mods.keep )
-      runtime.stack.push(originalCount);
-  }else{
-    count = script*1;
+    if( runtime.mods.keep && fromStack )
+      runtime.stack.push(originalCount);  
   }
 
   runtime.callStack.push( new TimeVortex( char, runtime.cell, count ) );
@@ -536,24 +567,24 @@ function modify( x , script , runtime ){
   let xScript = script, parts;
   while(xScript.length){
     //Lets check for some operators
-    if( xScript.startsWith('r') ){
+    if( xScript.startsWith('r') ){ //Round
       x = Math.round(x);
       xScript = xScript.slice(1);     
     }
-    else if( xScript.startsWith('U') ){
+    else if( xScript.startsWith('U') ){ //Uppercase
       x = x.toString().toUpperCase();
       xScript = xScript.slice(1);
     }
-    else if( xScript.startsWith('l') ){
+    else if( xScript.startsWith('l') ){ //lowercase
       x = x.toString().toLowerCase();
       xScript = xScript.slice(1);
     }
-    else if( xScript.startsWith('T') ){
+    else if( xScript.startsWith('T') ){ //Transform thru regex
       parts = xScript.shift().split( runtime.mods.separatorRegex );
       x = ( x + '' ).replace( new RegExp( parts[0] ), parts[1] );
       xScript = '';
     }    
-    else if( xScript.startsWithIn(['-','+','/','*','%']) ){
+    else if( xScript.startsWithIn(['-','+','/','*','%']) ){ //Basic math operators
       if(isNaN(x * 1)){
         if( xScript.startsWith('+') ){
           parts = xScript.split( runtime.mods.separator );
@@ -572,7 +603,7 @@ function modify( x , script , runtime ){
         xScript = parts.join( runtime.mods.separator );
       }
     } 
-    else if( xScript.startsWithIn(['^']) ){
+    else if( xScript.startsWithIn(['^']) ){ //Power!
       if(isNaN(x * 1)){
         //Who knows right ;)
       }else{
@@ -594,14 +625,13 @@ function modify( x , script , runtime ){
 function lice( script, runtime){
   
   var stack = runtime.stack,
-      data = stack.slice(-1)[0],
-      isList = data.isList;
+      data = stack.last();
   
   if(!runtime.mods.keep)
     runtime.stack.pop();
 
   if(!script){
-    if(isList){
+    if(data.isList){
       runtime.stack.push( runtime.stack.concat([data]).clone() );    
     }else{
       runtime.stack = runtime.stack.concat( data.split(runtime.mods.separator) );
@@ -609,7 +639,11 @@ function lice( script, runtime){
   }
 
   while(script){
-    if(isList){
+    if( script.startsWith('s') ){ //set the separator, one char only
+      runtime.mods.separator = script.shift(1).first();
+      script = script.shift(2);
+    }
+    if(data.isList){
       if( script.startsWith('f') ){ //find the lowest common denominator
         data =  data.reduce( (p, c) => p.concat(Math.factors(c)) , [] ).unique().reduce( (p, c) => p * c , 1  );
         script = script.shift();
@@ -619,17 +653,23 @@ function lice( script, runtime){
         script = script.shift();
       }
       if( script.startsWith('l') ){ //make a list of the stack and concat with the dingle list and push that
-        runtime.stack.push( runtime.stack.concat([data]).clone() );
+        runtime.stack = runtime.stack.concat(data);
+        data = runtime.stack.pop();
         script = script.shift();
       }
-      if( script.startsWith('j') ){ //join, and run for the hills
-        data.split(runtime.mods.separator).forEach( c => runtime.push() );
-        return;
+      if( script.startsWith('j') ){ // reverse join -> split, keep last element for shenanigans
+        data.forEach( c => runtime.stack.push(c) );
+        data = runtime.stack.pop();
+        script = script.shift();
       }
     }else{
       //It's not a list, but we are going to make one
       if( script.startsWith('f') ){ //find the factors
         data =  Math.factors( data );
+        script = script.shift();
+      }
+      if( script.startsWith('l') ){ //Split over the separator
+        data = data.split(runtime.mods.separator).concat( runtime.stack );
         script = script.shift();
       }
     }
@@ -720,6 +760,19 @@ function templateString( s  , runtime ){
 
   s = s.replace( /^Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ) });
   s = s.replace( /.Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ) });
+  
+  s = s.replace( /^Ó/g , function f(s){ return replaceYouMaybe( s , 'Ó' , runtime.registers[1] ) });
+  s = s.replace( /.Ó/g , function f(s){ return replaceYouMaybe( s , 'Ó' , runtime.registers[1] ) });
+
+  s = s.replace( /^Ô/g , function f(s){ return replaceYouMaybe( s , 'Ô' , runtime.registers[2] ) });
+  s = s.replace( /.Ô/g , function f(s){ return replaceYouMaybe( s , 'Ô' , runtime.registers[2] ) });
+
+  s = s.replace( /^Õ/g , function f(s){ return replaceYouMaybe( s , 'Õ' , runtime.registers[3] ) });
+  s = s.replace( /.Õ/g , function f(s){ return replaceYouMaybe( s , 'Õ' , runtime.registers[3] ) });
+
+  s = s.replace( /^Ö/g , function f(s){ return replaceYouMaybe( s , 'Ö' , runtime.registers[4] ) });
+  s = s.replace( /.Ö/g , function f(s){ return replaceYouMaybe( s , 'Ö' , runtime.registers[4] ) });
+
   return s;
 }
 
@@ -797,6 +850,7 @@ function Runtime( levels, stack, eol ){
     keep : false,
     radixIn : 10,
     radixOut : 10,
+    maxRegisters : 5,
     separatorOut : '\n',
     separator : ';',
     separatorRegex: '`',
@@ -868,6 +922,8 @@ function upgradeNode(){
 
   Array.prototype.last = function arrayLast( runtimeOrKeep ){
     let value = this.slice(-1)[0];
+    //if( value === undefined )
+    //  console.warn('Stack underflow!!');
     if( runtimeOrKeep === undefined )
       return value;
     if( typeof runtimeOrKeep == 'boolean' )
