@@ -330,6 +330,7 @@ function execute( runtime ){
   else if( type == '<' ) goUpstairs( script, runtime );
   else if( type == '(' ) wield( script, runtime);
   else if( type == ')' ) unwield( script, runtime);
+  else if( type == 'l' ) lice( script, runtime );
   else if( type.match(/\d/) ) portal( script, runtime, type );
   else console.log( type + ' not recognized, infinite loop!');
 
@@ -590,6 +591,52 @@ function modify( x , script , runtime ){
 }
 
 
+function lice( script, runtime){
+  
+  var stack = runtime.stack,
+      data = stack.slice(-1)[0],
+      isList = data.isList;
+  
+  if(!runtime.mods.keep)
+    runtime.stack.pop();
+
+  if(!script){
+    if(isList){
+      runtime.stack.push( runtime.stack.concat([data]).clone() );    
+    }else{
+      runtime.stack = runtime.stack.concat( data.split(runtime.mods.separator) );
+    }
+  }
+
+  while(script){
+    if(isList){
+      if( script.startsWith('f') ){ //find the lowest common denominator
+        data =  data.reduce( (p, c) => p.concat(Math.factors(c)) , [] ).unique().reduce( (p, c) => p * c , 1  );
+        script = script.shift();
+      }
+      if( script.startsWith('*') ){ //multiply all elements
+        data = data.reduce( (p, c) => p * c , 1  );
+        script = script.shift();
+      }
+      if( script.startsWith('l') ){ //make a list of the stack and concat with the dingle list and push that
+        runtime.stack.push( runtime.stack.concat([data]).clone() );
+        script = script.shift();
+      }
+      if( script.startsWith('j') ){ //join, and run for the hills
+        data.split(runtime.mods.separator).forEach( c => runtime.push() );
+        return;
+      }
+    }else{
+      //It's not a list, but we are going to make one
+      if( script.startsWith('f') ){ //find the factors
+        data =  Math.factors( data );
+        script = script.shift();
+      }
+    }
+  }
+  runtime.stack.push( data );
+}
+
 
 function chaos( script, runtime ){
 
@@ -597,7 +644,7 @@ function chaos( script, runtime ){
   var stack = runtime.stack,
       data = stack.slice(-1)[0];
 
-  if( data.length && typeof data != 'string' ){
+  if( data.isList ){
     for( var i = 0 ; i < data.length ; i++ ){
       data[i] = modify( data[i], script, runtime );
     }
@@ -850,6 +897,31 @@ function upgradeNode(){
       }
     }
     return false;
+  }
+
+  Array.prototype.clone = function() {
+	  return this.slice(0);
+  };
+
+  Array.prototype.unique = function(){
+    let out = [];
+    this.forEach( v => ~out.indexOf(v)?0:out.push(v) );
+    return out;
+  }
+
+  Array.prototype.isList = true;
+
+  Math.factors = function mathFactors( n ){
+
+    var factors = [],
+        limit = Math.floor( Math.sqrt( n ) );
+
+    while(limit){
+      if( !( n % limit ) )
+        factors = factors.concat( [limit,n/limit] );
+      limit--;
+    }
+    return factors.unique().sort((a,b)=>a-b);
   }
 
 }
