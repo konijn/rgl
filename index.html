@@ -7,6 +7,7 @@
   <style>
     textarea { font-family: monospace; display:block }
     button { background-color:lightgrey }
+	#output { font-family: monospace; }
   </style>
   <script charset="utf-8" src="bin/rgl.js"></script>
 </head>
@@ -38,12 +39,15 @@ Output:
 	      params = $('params').value,
           lines = code.split('\n'),
           out = $('output');
+
+    localStorage.setItem('code', code);
+    localStorage.setItem('params', params);
     
     for(line of lines){
       console.log(line);
     }
 	//Send a nice list of trimmed, non space parameters
-	myProcess.argv = params.split(/\W/).filter(s=>s).map(s=>s.trim());
+	postArgs = params.split(/\s/).filter(s=>s).map(s=>s.trim());
 	//Run that thing
     runFile( code );
   
@@ -52,6 +56,13 @@ Output:
   const button = $('go');
   $('go').style.width = $('code').offsetWidth + 'px'  
   $('go').addEventListener('click', go);
+
+  window.onload = function windowOnload(){
+    //Hmm, not addEventListener here, following MDN
+	//https://developer.mozilla.org/en/docs/Web/API/GlobalEventHandlers/onload
+	$('code').value = localStorage.getItem('code');
+	$('params').value = localStorage.getItem('params');
+  }
   
 </script>
   
