@@ -813,6 +813,8 @@ function scroll( script, runtime ){
   }else if( script.startsWith("'") ){
     write( script.slice(1), runtime );    
   //Finally, there might be some transformation we might have to apply first
+  }else if( script.startsWith('e') ){
+    write( eval(templateString( script.shift(), runtime )), runtime );
   }else{
     runtime.stack.push( runtime.stack.last() );
     chaos( script, runtime );
