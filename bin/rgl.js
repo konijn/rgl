@@ -62,7 +62,7 @@ if( isNode ){
 function Layout( line ){
   this.lines = [ line ];
   this.scripts = [];
-}
+};
 
 Layout.prototype.add = function layoutAdd( line ){
   this.lines.push( line );
@@ -75,11 +75,11 @@ Layout.prototype.getEntry = function getEntry(){
         return new Cell( l,  c );
   console.warn( 'Could not find an entry in layout:\n' + this.lines.join('\n') );
   process.exit(1);
-}
+};
 
 Layout.prototype.exists = function exists( line, char ){
   return this.lines[line] && this.lines[line][char] !== undefined;
-}
+};
 
 Layout.prototype.findNextPortal = function jumpNextPortal( runtime ){
   var cell = runtime.cell,
@@ -118,7 +118,7 @@ Layout.prototype.findNextPortal = function jumpNextPortal( runtime ){
     //Strategy 5, blame the 'developer'
     console.log('No matching portal found :/');
   }
-}
+};
 
 Layout.prototype.walk = function walk( runtime ){
   var cell = runtime.cell,
@@ -186,7 +186,7 @@ Layout.prototype.walk = function walk( runtime ){
     }
   }
   return false;
-}
+};
 
 
 //***Config***\\
@@ -196,12 +196,12 @@ function Config( line ){
 
 Config.prototype.add = function configAdd( line ){
   this.lines.push( line );
-}
+};
 
 Config.prototype.get = function configGet( type, index ){
   return !this[type] ? '' :
           this[type].length ? this[type][index] : this[type];
-}
+};
 
 Config.prototype.set = function configSet( type, script, index ){
   //Are we not dealing with an asterisk, then just store the entry in an array
@@ -218,7 +218,7 @@ Config.prototype.set = function configSet( type, script, index ){
     //Otherwise store it straight
     this[type] = script;
   }
-}
+};
 
 //***Level***\\
 function Level( layout ){
@@ -298,9 +298,9 @@ function parse( levels ){
     for( let line of level.layout.lines ){
       let scripts = [];
       for( const char of line ){
-        counts[char] = counts[char] || 0;;
+        counts[char] = counts[char] || 0;
         scripts.push( level.config.get( char , counts[char] ) || null ); 
-        counts[char]++
+        counts[char]++;
       }
       //Dont you love encapsulationless OO ;)
       level.layout.scripts.push( scripts );
@@ -323,6 +323,7 @@ function execute( runtime ){
   else if( type == '~' ) light( script, runtime );
   else if( type == 'Z' ) chaos( script, runtime );
   else if( type == 'V' ) timeVortex( script, runtime, 'V' );
+  else if( type == 'D' ) dragon( script, runtime );
   else if( type == 'v' ) timeVortex( script, runtime, 'v' );
   else if( type == '0' ) jump( script, runtime );
   else if( type == 'R' ) zothOmmog( script, runtime );
@@ -341,6 +342,16 @@ function execute( runtime ){
   }
 }
 
+//There be fell dragons here
+function dragon( script, runtime ){
+  if(!script){
+    return runtime.stack.pop();
+  }
+  let count = templateString( script, runtime ) * 1;
+  while(count--)
+    runtime.stack.pop();
+}
+
 function heavyWield(script, runtime){
   let oldKeepValue = runtime.mods.keep;
   runtime.mods.keep = true;
@@ -348,10 +359,20 @@ function heavyWield(script, runtime){
   runtime.mods.keep = oldKeepValue;
 }
 
-//Wielding does not consume, not sure if this makes sense though
+function mapCharToRegister( c ){
+  c = c.first();
+  if( c == 'a' || c == 'Ò' ) return 0; 
+  else if( c == 'b' || c == 'Ó' ) return 1; 
+  else if( c == 'c' || c == 'Ô' ) return 2;
+  else if( c == 'd' || c == 'Õ' ) return 3;
+  else if( c == 'e' || c == 'Ö' ) return 4;
+  else return undefined;
+}
+
+//Wielding consumes, it makes sense
 function wield( script, runtime ){
   if(!script){
-    runtime.registers[0] = runtime.stack.last();
+    runtime.registers[0] = runtime.stack.last( runtime.mods.keep );
     return;
   }
   //Multi move from stack to registers
@@ -363,20 +384,10 @@ function wield( script, runtime ){
     }
     return;
   }
-  let target = script.first();
-  if( target == 'a' || target == 'Ò' )
-    target = 0; //Though, that is retarded..
-  else if( target == 'b' || target == 'Ó' )
-    target = 1; //Though, that is retarded..
-  else if( target == 'c' || target == 'Ô' )
-    target = 2; //Though, that is retarded..
-  else if( target == 'd' || target == 'Õ' )
-    target = 3; //Though, that is retarded..
-  else if( target == 'e' || target == 'Ö' )
-    target = 4; //Though, that is retarded..
-  else {
+  let target = mapCharToRegister( script );
+  if(target === undefined ){
     target = 0;
-    script = 'a' + script;
+    script = 'a' + script;  
   }
   //Make sure that if we keep the value that 
   if(runtime.mods.keep)
@@ -388,25 +399,16 @@ function wield( script, runtime ){
 }
 
 function unwield( script, runtime ){
-  if(!script){
-    runtime.stack.push( runtime.registers[0] );
-    return;
-  }
-  let source = script.first();
-  if( source == 'a' || source == 'Ò' )
-    source = 0; //Though, that is retarded..
-  else if( source == 'b' || source == 'Ó' )
-    source = 1; //Though, that is retarded..
-  else if( source == 'c' || source == 'Ô' )
-    source = 2; //Though, that is retarded..
-  else if( source == 'd' || source == 'Õ' )
-    source = 3; //Though, that is retarded..
-  else if( source == 'e' || source == 'Ö' )
-    source = 4; //Though, that is retarded..
-  else {
+
+  if(!script)
+    return runtime.stack.push( runtime.registers[0] );
+
+  let source = mapCharToRegister( script );
+  if(source === undefined ){
     source = 0;
-    script = 'a' + script;
+    script = 'a' + script;  
   }
+
   runtime.stack.push( runtime.registers[source] );
   if(script.length!=1){
     chaos( script.shift(), runtime );
@@ -418,9 +420,8 @@ function portal( script, runtime, type ){
   script = script || 'true';
   let statement = templateString( script, runtime );
   let value = eval(statement);
-  if(value){
+  if(value)
     runtime.level.layout.findNextPortal( runtime );
-  }
 }
 
 function goUpstairs( script, runtime ){
@@ -434,7 +435,6 @@ function goUpstairs( script, runtime ){
 
 }
 
-
 function Yugg(script){
   //console.log( 'Creating Yugg with ' + script );
   this.script = script;
@@ -443,6 +443,14 @@ function Yugg(script){
 //Zoth Ommog, 'R', third son of Cthulu, caster of Regex, master of Yuggs
 function zothOmmog( script, runtime ){
 
+  if( !script ){
+    //Once again considering not to keep the regex on the stack ;]
+    script = runtime.stack.last( false );
+    if(script.startsWith('k')){
+      runtime.stack.push(script);
+      script = script.shift();
+    }
+  }
   if( script.startsWith('&') ){
     runtime.stack.push( new Yugg( script.shift() ) );
   }else{
@@ -458,39 +466,29 @@ function applyYuggs( runtime ){
     if( o instanceof Yugg ){
       runtime.mods.regexOut.push( o );
     } else {
-      runtime.stack.push( o )
+      runtime.stack.push( o );
       return;
     }
   }
 }
 
-//Unlike roguelikes, these doors ask for input before
-//letting you through, I am open to a more roguelike 
-//convention for asking user input
-//It is symbolic that this is 'blocking'
-/*
-const readline = require('readline');
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-*/
-
 function storeInput( input, script, runtime ){
+
     if(!script){
-      runtime.stack.push( input )
-    }else if( script == 'a' || script == 'Ò' ){
-      runtime.registers[0] = input;
-    }else if( script == 'b' || script == 'Ó' ){
-      runtime.registers[1] = input;
-    }else if( script == 'c' || script == 'Ô' ){
-      runtime.registers[2] = input;
-    }else if( script == 'd' || script == 'Õ' ){
-      runtime.registers[3] = input;
-    }else if( script == 'e' || script == 'Ö' ){
-      runtime.registers[4] = input;
+      runtime.stack.push( input );
+    }else if( script.startsWith('@') ){
+      runtime.stack.push( input );
+      chaos( script.shift(), runtime );
+    }else{
+      let target = mapCharToRegister( script ) || 0;
+      runtime.registers[target] = input;
+      if(script.length>1)
+        chaos( script.shift(), runtime );
     }
 }
+
+//Unlike roguelikes, these doors ask for input before letting you through, I am open to a more roguelike 
+//convention for asking user input
 
 function door( script, runtime ){
 
@@ -510,7 +508,7 @@ function door( script, runtime ){
           process.stdin.push( lines.join( runtime.mods.eol ) );
         }
       }
-      storeInput(input, script, runtime)
+      storeInput(input, script, runtime);
       run( runtime );
     });
   } else {
@@ -560,64 +558,108 @@ function jump( script, runtime ){
   }
 }
 
+function stringModify( x, script, runtime ){
+ 
+  x+='';
+  let parts = script.shift().split( runtime.mods.separator ),
+      rest =  templateString( parts.shift(), runtime ),
+      partedScript = parts.join( runtime.mods.separator );
+  
+  if( script.startsWith('U') ) return [ x.toUpperCase(), script.shift() ];
+  if( script.startsWith('l') ) return [ x.toLowerCase(), script.shift() ];
+  if( script.startsWith('k') ) return [ x.keep( rest ), partedScript ];
+  if( script.startsWith('s') ) return [ x.shift( rest ), partedScript ];
+  if( script.startsWith('+') ) return [ x+rest, partedScript ];
+  if( script.startsWith('*') ) return [ x.repeat(rest*1), partedScript ];
+  if( script.startsWith('t*') ) return [ x.translate(script.shift(2)), '' ];
+  if( script.startsWith('t') ) return [ x.translate( rest ), partedScript ];
 
+  if( script.startsWith('T') ){ //Transform thru regex
+    parts = script.shift().split( runtime.mods.separatorRegex );
+    return [ x.replace( new RegExp( parts[0] ), parts[1] ) , '' ];
+  }
+
+  return [x, undefined];
+}
+
+function numberModify( x, script, runtime ){
+
+  x*=1;
+  let parts = script.shift().split( runtime.mods.separator ),
+      rest =  templateString( parts.shift(), runtime ),
+      partedScript = parts.join( runtime.mods.separator );
+
+  if( script.startsWith('r') ) return [ Math.round(x), script.shift() ]; 
+  if( script.startsWith('a') ) return [ Math.abs(x), script.shift() ]; 
+  if( script.startsWith('c') ) return [ Math.ceil(x), script.shift() ]; 
+  if( script.startsWith('f') ) return [ Math.floor(x), script.shift() ]; 
+  if( script.startsWith('t') ) return [ Math.trunc(x), script.shift() ];   
+  if( script.startsWith('^') ) return [ eval( 'Math.pow( x , ' + rest + ')' ) , partedScript ];
+
+  if( script.startsWithIn(['-','+','/','*','%']) ) return [ eval( 'x' + script[0] + rest ), partedScript ];
+
+  return [x, undefined];
+}
+
+//Hoodoo voodoo, expected to just do a NOOP pass through
+function commonModify( x, script, runtime ){
+  if( script.startsWith('(') ){
+    runtime.stack.push(x);
+    if( script.shift().startsWithIn(['Ò','Ó','Ô','Õ','Ö'] ) )
+      return wield( script.shift().first() , runtime), [x,script.shift(2)];
+    else
+      return wield( '' , runtime), [x,script.shift()];
+  }
+  if( script.startsWith('[') ){
+    runtime.stack.push(x);
+    if( script.shift().startsWithIn(['Ò','Ó','Ô','Õ','Ö'] ) )
+      return heavyWield( script.shift().first() , runtime), [x,script.shift(2)];
+    else
+      return heavyWield( '' , runtime), [x,script.shift()];
+  }
+  if( script.startsWith(MATH) )
+    return runtime.mods.opMode = MATH, [x,script.shift()];
+  if( script.startsWith(STRINGS) )
+    return runtime.mods.opMode = STRINGS, [x,script.shift()];
+  if( script.startsWith(FUZZY) )
+    return runtime.mods.opMode = FUZZY, [x,script.shift()];
+  return [x, script];
+}
+
+function myIsNaN( o , runtime ){
+  //If it's a number, well then.. 
+  if( typeof o === "number" ) return false;
+  //Try and deal with non-strings, hesitantly
+  if( typeof o !== "string" ) o = o.toString();
+  //If we are dealing with zero string or a set of spaces, not a number
+  if( o.trim() === "" ) return true;
+  //No more than 1 dot in the string (decimal separator)
+  if( ~o.indexOf(".") && o.match(/\./g).length > 1 ) return true;
+  //If we are talking base 10, then we should only see digits and an optional dot
+  if( runtime.mods.radixIn == 10) return typeof (o*1) !== "number" || isNaN(o*1); 
+}
 
 function modify( x , script , runtime ){
 
-  let xScript = script, parts;
-  while(xScript.length){
-    //Lets check for some operators
-    if( xScript.startsWith('r') ){ //Round
-      x = Math.round(x);
-      xScript = xScript.slice(1);     
+  var result;
+
+  while(script.length){
+    //Silly node does not do destructuring without var/let/const
+    result =  commonModify( x, script, runtime );
+    x = result[0]; script = result[1];
+    if( runtime.mods.opMode == MATH ){
+      result = numberModify( x, script, runtime );
+    }else if( runtime.mods.opMode == STRINGS ){
+      result = stringModify( x, script, runtime ); 
+    }else {
+      result = myIsNaN( x, runtime ) ? stringModify( x, script, runtime ) : numberModify( x, script, runtime );
     }
-    else if( xScript.startsWith('U') ){ //Uppercase
-      x = x.toString().toUpperCase();
-      xScript = xScript.slice(1);
+    if( result[1] === undefined ){
+      result = !myIsNaN( x, runtime ) ? stringModify( x, script, runtime ) : numberModify( x, script, runtime );
     }
-    else if( xScript.startsWith('l') ){ //lowercase
-      x = x.toString().toLowerCase();
-      xScript = xScript.slice(1);
-    }
-    else if( xScript.startsWith('T') ){ //Transform thru regex
-      parts = xScript.shift().split( runtime.mods.separatorRegex );
-      x = ( x + '' ).replace( new RegExp( parts[0] ), parts[1] );
-      xScript = '';
-    }    
-    else if( xScript.startsWithIn(['-','+','/','*','%']) ){ //Basic math operators
-      if(isNaN(x * 1)){
-        if( xScript.startsWith('+') ){
-          parts = xScript.split( runtime.mods.separator );
-          x  = x + templateString( parts.shift().shift(), runtime );
-          xScript = parts.join( runtime.mods.separator );
-        }          
-        if( xScript.startsWith('*') ){
-          parts = xScript.split( runtime.mods.separator );
-          x  = x.repeat( templateString( parts.shift().shift(), runtime ) );
-          xScript = parts.join( runtime.mods.separator );
-        }          
-      }else{
-        x = x * 1;
-        parts = xScript.split( runtime.mods.separator );
-        x = eval( 'x' + templateString( parts.shift(), runtime ) );
-        xScript = parts.join( runtime.mods.separator );
-      }
-    } 
-    else if( xScript.startsWithIn(['^']) ){ //Power!
-      if(isNaN(x * 1)){
-        //Who knows right ;)
-      }else{
-        x = x * 1;
-        parts = xScript.split( runtime.mods.separator );
-        x = eval( 'Math.pow( x , ' + templateString( parts.shift().shift(), runtime ) + ')' );
-        xScript = parts.join( runtime.mods.separator );
-      }
-    } else {
-      console.log( 'Modify operation not recognized, treating the rest as a string!');
-      x = xScript;
-      xScript = ''
-    }
+    x = result[0]; script = result[1] || '';
   }
+
   return x;
 }
 
@@ -639,8 +681,12 @@ function lice( script, runtime){
   }
 
   while(script){
-    if( script.startsWith('s') ){ //set the separator, one char only
+    if( script.startsWith('s') ){ //set the internal separator, one char only
       runtime.mods.separator = script.shift(1).first();
+      script = script.shift(2);
+    }
+    if( script.startsWith('e') ){ //set the output separator, one char only
+      runtime.mods.separatorElement = script.shift(1).first();
       script = script.shift(2);
     }
     if(data.isList){
@@ -657,6 +703,9 @@ function lice( script, runtime){
         data = runtime.stack.pop();
         script = script.shift();
       }
+        runtime.registers[0] = data.length;
+        script = script.shift();
+      }
       if( script.startsWith('j') ){ // reverse join -> split, keep last element for shenanigans
         data.forEach( c => runtime.stack.push(c) );
         data = runtime.stack.pop();
@@ -669,7 +718,7 @@ function lice( script, runtime){
         script = script.shift();
       }
       if( script.startsWith('l') ){ //Split over the separator
-        data = data.split(runtime.mods.separator).concat( runtime.stack );
+        data = data.split(runtime.mods.separator);
         script = script.shift();
       }
     }
@@ -679,7 +728,6 @@ function lice( script, runtime){
 
 
 function chaos( script, runtime ){
-
 
   var stack = runtime.stack,
       data = stack.slice(-1)[0];
@@ -710,6 +758,7 @@ function light( script, runtime ){
       if( char == 'S' ) context = 'mods.separatorOut';
       if( char == 's' ) context = 'mods.separator';
       if( char == 'r' ) context = 'mods.separatorRegex';
+      if( char == 'e' ) context = 'mods.separatorElement';
       if( char == 'R' ) applyYuggs( runtime );
       if( char == ' ' ) process.stdout.write("\u001b[2J\u001b[0;0H");
     }else{
@@ -717,6 +766,7 @@ function light( script, runtime ){
       if( context == 'mods.separatorOut' ) mods.separatorOut = char;
       if( context == 'mods.separator' ) mods.separator = char;
       if( context == 'mods.separatorRegex' ) mods.separatorRegex = char;
+      if( context == 'mods.separatorElement' ) mods.separatorElement = char;
       context = '';
     } 
   }
@@ -736,11 +786,18 @@ function chest( script, runtime ){
   //If we see a string constant, store it on the stack
   if( script.startsWith("'") ){
     stack.push( script.slice(1) );
+  }else if( script.startsWith("`") ){
+    stack.push( templateString( script.slice(1) , runtime ) );
+  }else if( script.startsWith('"') ){
+    //Take everything within double quotes, escape double quote with \"
+    let matches = script.match(/(["'])(?:(?=(\\?))\2.)*?\1/);
+    let s = matches.shift();
+    stack.push( s.shift().shift(-1) );
+    chaos( script.shift( s.length ) , runtime );
   }else{
     //todo, numbers will use radixes..
     stack.push( parseInt( script , mods.radixIn ) );
   }
-
 }
 
 function replaceYouMaybe( match, symbol, value ){
@@ -753,30 +810,34 @@ function replaceYouMaybe( match, symbol, value ){
 function templateString( s  , runtime ){
   //Replace @ with the dingle, but leave \@ alone
   let dingle = runtime.stack.last();
-  s = s.replace( /^@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ) }); 
-  s = s.replace( /.@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ) });
+  s = s.replace( /^@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ); }); 
+  s = s.replace( /.@/g , function f(s){ return replaceYouMaybe( s , '@' , dingle ); });
 
   //console.log( 'Run time register: ' , runtime.registers , runtime.registers[0] );
 
-  s = s.replace( /^Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ) });
-  s = s.replace( /.Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ) });
+  s = s.replace( /^Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ); });
+  s = s.replace( /.Ò/g , function f(s){ return replaceYouMaybe( s , 'Ò' , runtime.registers[0] ); });
   
-  s = s.replace( /^Ó/g , function f(s){ return replaceYouMaybe( s , 'Ó' , runtime.registers[1] ) });
-  s = s.replace( /.Ó/g , function f(s){ return replaceYouMaybe( s , 'Ó' , runtime.registers[1] ) });
+  s = s.replace( /^Ó/g , function f(s){ return replaceYouMaybe( s , 'Ó' , runtime.registers[1] ); });
+  s = s.replace( /.Ó/g , function f(s){ return replaceYouMaybe( s , 'Ó' , runtime.registers[1] ); });
 
-  s = s.replace( /^Ô/g , function f(s){ return replaceYouMaybe( s , 'Ô' , runtime.registers[2] ) });
-  s = s.replace( /.Ô/g , function f(s){ return replaceYouMaybe( s , 'Ô' , runtime.registers[2] ) });
+  s = s.replace( /^Ô/g , function f(s){ return replaceYouMaybe( s , 'Ô' , runtime.registers[2] ); });
+  s = s.replace( /.Ô/g , function f(s){ return replaceYouMaybe( s , 'Ô' , runtime.registers[2] ); });
 
-  s = s.replace( /^Õ/g , function f(s){ return replaceYouMaybe( s , 'Õ' , runtime.registers[3] ) });
-  s = s.replace( /.Õ/g , function f(s){ return replaceYouMaybe( s , 'Õ' , runtime.registers[3] ) });
+  s = s.replace( /^Õ/g , function f(s){ return replaceYouMaybe( s , 'Õ' , runtime.registers[3] ); });
+  s = s.replace( /.Õ/g , function f(s){ return replaceYouMaybe( s , 'Õ' , runtime.registers[3] ); });
 
-  s = s.replace( /^Ö/g , function f(s){ return replaceYouMaybe( s , 'Ö' , runtime.registers[4] ) });
-  s = s.replace( /.Ö/g , function f(s){ return replaceYouMaybe( s , 'Ö' , runtime.registers[4] ) });
+  s = s.replace( /^Ö/g , function f(s){ return replaceYouMaybe( s , 'Ö' , runtime.registers[4] ); });
+  s = s.replace( /.Ö/g , function f(s){ return replaceYouMaybe( s , 'Ö' , runtime.registers[4] ); });
 
   return s;
 }
 
 function write( s , runtime ){
+
+ if(s.isList){
+   s = s.join(runtime.mods.separatorElement);
+ }
 
  s = s.toString().replace( /\\n/g , runtime.mods.eol );
  s = templateString( s , runtime );
@@ -796,14 +857,11 @@ function write( s , runtime ){
  }
 
   myProcess.stdout.write( s );
- 
-
 }
 
 function scroll( script, runtime ){
 
-  var stack = runtime.stack,
-      mods = runtime.mods;
+  var stack = runtime.stack;
 
   //Without script we just dump what is on the stack
   //Keep the value on stack based on runtime.keep via last()
@@ -835,19 +893,20 @@ function Cell( line, char){
 
 Cell.prototype.clone = function cellClone(){
   return new Cell( this.line, this. char );
-}
+};
 
 Cell.prototype.equals = function cellEquals(cell){
   return this.line==cell.line && this.char == cell.char;
-}
+};
 
+const FUZZY=0,MATH=1,STRINGS=2;
 
 function Runtime( levels, stack, eol ){
 
-  this.stack = stack,
-  this.callStack = [],
-  this.registers = [],
-  this.levels = levels,
+  this.stack = stack;
+  this.callStack = [];
+  this.registers = [];
+  this.levels = levels;
   this.mods = {
     keep : false,
     radixIn : 10,
@@ -855,11 +914,13 @@ function Runtime( levels, stack, eol ){
     maxRegisters : 5,
     separatorOut : '\n',
     separator : ';',
+    separatorElement : ',',
     separatorRegex: '`',
     regexOut: [],
     eol: eol,
-    fileMode: false
-  }
+    fileMode: false,
+    opMode: FUZZY
+  };
 }
 
 function TimeVortex( type, cell, count ){
@@ -887,9 +948,9 @@ function runFile( fileContent ){
   if( !isNode )
     $('output').innerHTML = '';
 
-  var fileContent = fileContent.toString(),
-      eol = ~fileContent.indexOf('\r\n') ? '\r\n' : '\n',
-      lines = fileContent.split( eol ),
+  var ANSI = fileContent.toString(),
+      eol = ~ANSI.indexOf('\r\n') ? '\r\n' : '\n',
+      lines = ANSI.split( eol ),
       levels = parse( lex( lines ) );
 
   runLevel( 0, new Runtime( levels, postArgs, eol ) ); 
@@ -919,7 +980,6 @@ function run( runtime ){
   }
 }
 
-
 function upgradeNode(){
 
   Array.prototype.last = function arrayLast( runtimeOrKeep ){
@@ -934,28 +994,11 @@ function upgradeNode(){
       return runtimeOrKeep.mods.keep ? value : this.pop();
     console.warn( 'Array.last() called not using undefined/boolean/Runtime: ' + JSON.stringify( Object.getPrototypeOf( runtimeOrKeep ) ) );
     return value;
-  }
+  };
 
   Array.prototype.doubleDingle = function arrayDoubleDingle(){
     this.push( this.last() );
-  }
-
-  String.prototype.first = function stringFirst(){
-    return this.slice(0,1);
-  }
-
-  String.prototype.shift = function stringShift(n){
-    return this.slice(n||1);  
-  }
-
-  String.prototype.startsWithIn = function stringStartsWithIn( list ){
-    for( let i = 0 ; i < list.length ; i++ ){
-      if(this.startsWith(list[i])){
-        return true;
-      }
-    }
-    return false;
-  }
+  };
 
   Array.prototype.clone = function() {
 	  return this.slice(0);
@@ -965,9 +1008,42 @@ function upgradeNode(){
     let out = [];
     this.forEach( v => ~out.indexOf(v)?0:out.push(v) );
     return out;
-  }
+  };
 
   Array.prototype.isList = true;
+
+  String.prototype.first = function stringFirst(){
+    return this.slice(0,1);
+  };
+
+  String.prototype.shift = function stringShift(n){
+    return n<0 ? this.slice( 0 , this.length + n ) : this.slice( n || 1 );
+  };
+
+  String.prototype.keep = function stringkeep(n){
+    return n<0?this.slice(n):this.slice(0,n);
+  };
+
+  String.prototype.startsWithIn = function stringStartsWithIn( list ){
+    for( let i = 0 ; i < list.length ; i++ ){
+      if(this.startsWith(list[i])){
+        return true;
+      }
+    }
+    return false;
+  };
+
+  String.prototype.translate = function stringTranslate( charMap ){
+    let map = {}, out = '';
+    while( charMap.length ){
+      map[charMap[0]] = charMap[1];
+      charMap = charMap.shift(2);
+    }
+    for( let c of this ){
+      out += map[c] ? map[c] : c;
+    }
+    return out;
+  };
 
   Math.factors = function mathFactors( n ){
 
@@ -980,6 +1056,6 @@ function upgradeNode(){
       limit--;
     }
     return factors.unique().sort((a,b)=>a-b);
-  }
+  };
 
 }
