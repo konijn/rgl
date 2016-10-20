@@ -14,3 +14,4 @@
 @call GenPrep R03Factors 60
 @call GenPrep EWithE "7,2,+,|,-"
 @call GenPrep KangarooSequence 10
+@call GenPrep SpacedOut "1 20 300"

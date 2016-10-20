@@ -11,5 +11,6 @@
 @call GenTestPipe R01IntegerComparison R01_EQ
 @call GenTestPipe R02IntegerOperations R02
 @call GenTest R03Factors 60
+@call GenTest SpacedOut "1 20 300"
 @echo Cleaning up..
 @del test.out
