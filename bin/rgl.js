@@ -62,11 +62,11 @@ if( isNode ){
 function Layout( line ){
   this.lines = [ line ];
   this.scripts = [];
-};
+}
 
 Layout.prototype.add = function layoutAdd( line ){
   this.lines.push( line );
-}
+};
 
 Layout.prototype.getEntry = function getEntry(){
   for( var l = 0 ; l < this.lines.length ; l++ )
@@ -703,6 +703,7 @@ function lice( script, runtime){
         data = runtime.stack.pop();
         script = script.shift();
       }
+      if( script.startsWith('D') ){ //Describe the list, put the length in the default register
         runtime.registers[0] = data.length;
         script = script.shift();
       }
